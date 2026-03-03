@@ -2,53 +2,49 @@
 #include <stdlib.h>
 #include <string.h>
 
-// ================= ÁRVORE DE SALAS =================
+#define TAM 13
+#define MAX 50
 
-typedef struct Sala {
-    char nome[50];
-    struct Sala *esquerda;
-    struct Sala *direita;
-    char pista[50]; // pista encontrada na sala (se houver)
-} Sala;
+// ===================== BST =====================
 
-Sala* criarSala(char nome[], char pista[]) {
-    Sala *nova = (Sala*) malloc(sizeof(Sala));
-    strcpy(nova->nome, nome);
-    strcpy(nova->pista, pista);
-    nova->esquerda = NULL;
-    nova->direita = NULL;
-    return nova;
-}
+typedef struct No {
+    char pista[MAX];
+    struct No *esq, *dir;
+} No;
 
-// ================= BST DE PISTAS =================
-
-typedef struct NoPista {
-    char pista[50];
-    struct NoPista *esq;
-    struct NoPista *dir;
-} NoPista;
-
-NoPista* criarNoPista(char pista[]) {
-    NoPista *novo = (NoPista*) malloc(sizeof(NoPista));
+No* criarNo(char *pista) {
+    No* novo = (No*) malloc(sizeof(No));
     strcpy(novo->pista, pista);
-    novo->esq = NULL;
-    novo->dir = NULL;
+    novo->esq = novo->dir = NULL;
     return novo;
 }
 
-NoPista* inserir(NoPista *raiz, char pista[]) {
+No* inserirBST(No* raiz, char *pista) {
     if (raiz == NULL)
-        return criarNoPista(pista);
+        return criarNo(pista);
 
     if (strcmp(pista, raiz->pista) < 0)
-        raiz->esq = inserir(raiz->esq, pista);
+        raiz->esq = inserirBST(raiz->esq, pista);
     else if (strcmp(pista, raiz->pista) > 0)
-        raiz->dir = inserir(raiz->dir, pista);
+        raiz->dir = inserirBST(raiz->dir, pista);
 
     return raiz;
 }
 
-void emOrdem(NoPista *raiz) {
+int buscarBST(No* raiz, char *pista) {
+    if (raiz == NULL)
+        return 0;
+
+    if (strcmp(pista, raiz->pista) == 0)
+        return 1;
+
+    if (strcmp(pista, raiz->pista) < 0)
+        return buscarBST(raiz->esq, pista);
+
+    return buscarBST(raiz->dir, pista);
+}
+
+void emOrdem(No* raiz) {
     if (raiz != NULL) {
         emOrdem(raiz->esq);
         printf("- %s\n", raiz->pista);
@@ -56,81 +52,197 @@ void emOrdem(NoPista *raiz) {
     }
 }
 
-int buscar(NoPista *raiz, char pista[]) {
-    if (raiz == NULL)
-        return 0;
-
-    int cmp = strcmp(pista, raiz->pista);
-
-    if (cmp == 0)
-        return 1;
-    else if (cmp < 0)
-        return buscar(raiz->esq, pista);
-    else
-        return buscar(raiz->dir, pista);
-}
-
-// ================= EXPLORAÇÃO =================
-
-void explorar(Sala *atual, NoPista **raizPistas) {
-    char opcao;
-
-    while (atual != NULL) {
-
-        printf("\nVoce esta em: %s\n", atual->nome);
-
-        // Se houver pista
-        if (strlen(atual->pista) > 0) {
-            printf("Voce encontrou uma pista: %s\n", atual->pista);
-
-            if (!buscar(*raizPistas, atual->pista)) {
-                *raizPistas = inserir(*raizPistas, atual->pista);
-            }
-        }
-
-        printf("\nEscolha:\n");
-        if (atual->esquerda) printf("e -> Esquerda\n");
-        if (atual->direita) printf("d -> Direita\n");
-        printf("p -> Ver pistas coletadas\n");
-        printf("s -> Sair\n");
-        printf("Opcao: ");
-
-        scanf(" %c", &opcao);
-
-        if (opcao == 'e' && atual->esquerda)
-            atual = atual->esquerda;
-        else if (opcao == 'd' && atual->direita)
-            atual = atual->direita;
-        else if (opcao == 'p') {
-            printf("\n=== PISTAS EM ORDEM ALFABETICA ===\n");
-            emOrdem(*raizPistas);
-        }
-        else if (opcao == 's')
-            break;
-        else
-            printf("Opcao invalida!\n");
+void liberarBST(No* raiz) {
+    if (raiz != NULL) {
+        liberarBST(raiz->esq);
+        liberarBST(raiz->dir);
+        free(raiz);
     }
 }
 
-// ================= MAIN =================
+// ===================== HASH =====================
+
+typedef struct Item {
+    char pista[MAX];
+    char suspeito[MAX];
+    struct Item *prox;
+} Item;
+
+Item* tabela[TAM];
+
+int funcaoHash(char *pista) {
+    int soma = 0;
+    for (int i = 0; pista[i] != '\0'; i++)
+        soma += pista[i];
+    return soma % TAM;
+}
+
+void inserirNaHash(char *pista, char *suspeito, No* raiz) {
+
+    if (!buscarBST(raiz, pista)) {
+        printf("❌ Pista nao existe na BST!\n");
+        return;
+    }
+
+    int indice = funcaoHash(pista);
+
+    Item* novo = (Item*) malloc(sizeof(Item));
+    strcpy(novo->pista, pista);
+    strcpy(novo->suspeito, suspeito);
+
+    novo->prox = tabela[indice];
+    tabela[indice] = novo;
+
+    printf("✅ Associacao realizada com sucesso!\n");
+}
+
+void mostrarAssociacoes() {
+    printf("\n=== PISTAS E SUSPEITOS ===\n");
+
+    for (int i = 0; i < TAM; i++) {
+        Item* atual = tabela[i];
+        while (atual != NULL) {
+            printf("Pista: %s -> Suspeito: %s\n",
+                   atual->pista,
+                   atual->suspeito);
+            atual = atual->prox;
+        }
+    }
+}
+
+void suspeitoMaisCitado() {
+
+    char suspeitos[100][MAX];
+    int contagem[100];
+    int total = 0;
+
+    for (int i = 0; i < TAM; i++) {
+        Item* atual = tabela[i];
+        while (atual != NULL) {
+
+            int encontrado = 0;
+
+            for (int j = 0; j < total; j++) {
+                if (strcmp(suspeitos[j], atual->suspeito) == 0) {
+                    contagem[j]++;
+                    encontrado = 1;
+                    break;
+                }
+            }
+
+            if (!encontrado) {
+                strcpy(suspeitos[total], atual->suspeito);
+                contagem[total] = 1;
+                total++;
+            }
+
+            atual = atual->prox;
+        }
+    }
+
+    if (total == 0) {
+        printf("\nNenhum suspeito registrado.\n");
+        return;
+    }
+
+    int maior = contagem[0];
+    int indice = 0;
+
+    for (int i = 1; i < total; i++) {
+        if (contagem[i] > maior) {
+            maior = contagem[i];
+            indice = i;
+        }
+    }
+
+    printf("\n🔎 Suspeito mais citado: %s (%d pistas)\n",
+           suspeitos[indice], maior);
+}
+
+void liberarHash() {
+    for (int i = 0; i < TAM; i++) {
+        Item* atual = tabela[i];
+        while (atual != NULL) {
+            Item* temp = atual;
+            atual = atual->prox;
+            free(temp);
+        }
+    }
+}
+
+// ===================== MENU =====================
 
 int main() {
 
-    // Árvore da mansão
-    Sala *hall = criarSala("Hall de Entrada", "");
+    No* raiz = NULL;
 
-    hall->esquerda = criarSala("Biblioteca", "Livro Rasgado");
-    hall->direita = criarSala("Sala de Jantar", "");
+    for (int i = 0; i < TAM; i++)
+        tabela[i] = NULL;
 
-    hall->esquerda->esquerda = criarSala("Sala Secreta", "Chave Antiga");
-    hall->esquerda->direita = criarSala("Escritorio", "Carta Misteriosa");
+    int opcao;
+    char pista[MAX];
+    char suspeito[MAX];
 
-    hall->direita->esquerda = criarSala("Cozinha", "Faca Ensanguentada");
-    hall->direita->direita = criarSala("Jardim", "");
+    do {
 
-    NoPista *raizPistas = NULL;
+        printf("\n===== MENU =====\n");
+        printf("1 - Inserir pista\n");
+        printf("2 - Listar pistas (ordem alfabetica)\n");
+        printf("3 - Associar pista a suspeito\n");
+        printf("4 - Mostrar associacoes\n");
+        printf("5 - Mostrar suspeito mais citado\n");
+        printf("0 - Sair\n");
+        printf("Escolha: ");
+        scanf("%d", &opcao);
+        getchar();
 
-    explorar(hall, &raizPistas);
+        switch (opcao) {
+
+            case 1:
+                printf("Digite o nome da pista: ");
+                fgets(pista, MAX, stdin);
+                pista[strcspn(pista, "\n")] = 0;
+                raiz = inserirBST(raiz, pista);
+                printf("✅ Pista inserida!\n");
+                break;
+
+            case 2:
+                printf("\n=== PISTAS EM ORDEM ===\n");
+                emOrdem(raiz);
+                break;
+
+            case 3:
+                printf("Digite a pista: ");
+                fgets(pista, MAX, stdin);
+                pista[strcspn(pista, "\n")] = 0;
+
+                printf("Digite o suspeito: ");
+                fgets(suspeito, MAX, stdin);
+                suspeito[strcspn(suspeito, "\n")] = 0;
+
+                inserirNaHash(pista, suspeito, raiz);
+                break;
+
+            case 4:
+                mostrarAssociacoes();
+                break;
+
+            case 5:
+                suspeitoMaisCitado();
+                break;
+
+            case 0:
+                printf("Encerrando investigacao...\n");
+                break;
+
+            default:
+                printf("Opcao invalida!\n");
+        }
+
+    } while (opcao != 0);
+
+    liberarBST(raiz);
+    liberarHash();
 
     return 0;
 }
